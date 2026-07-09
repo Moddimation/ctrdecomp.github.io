@@ -1,56 +1,78 @@
 
-sortIndex = 0;
-sortReverse = false;
+const DataType = {
+	// The difference between Wii U and Switch title ids is in the sort order.
+	// Switch title ids have a random and an incrementing part. They are sorted
+	// by the incrementing part.
 
-formatters = [
-	function(v) { return v; },
-	function(v) {
-		return v.toString(16).toUpperCase().padStart(16, '0');
-	},
-	function(v) {
-		return v.toString(16).toUpperCase().padStart(16, '0');
-	},
-	function(v) { return v ? "Yes" : "No"; },
-	function(v) { return "v" + v; },
-	function(v) {
-		var steps = 0;
-		var frac = 0;
-		while (v >= 1000) {
-			frac = v % 1000;
-			v = Math.floor(v / 1000);
-			steps++;
-		}
-		
-		if (steps == 0) return v + " B";
-		else {
-			return v + "." + Math.floor(frac / 100) + " " + ["KB", "MB", "GB"][steps - 1];
-		}
-	},
-	function(v) {
-		if (v === null || v === undefined) return "";
-		if (v.length == 0) return "Yes";
-		
-		var s = "";
-		for (var i = 0; i < v[0].length; i++) {
-			if (i != 0) {
-				s += ".";
+	String: 0, // A simple string
+	TitleID_WiiU: 1,
+	TitleID_Switch: 2,
+	Bool: 3, // "Yes" or "No"
+	Version: 4, // A version number, e.g. "v5"
+	Size: 5, // A size in bytes, e.g. "1.2 KB"
+	Lib: 6, // A library version number with an optional suffix, e.g. "1.5.0-xx"
+	Address: 7, // An IP address and port
+	HexInt: 8 // A hexadecimal integer
+}
+
+sortIndex = 0; // Index of the column that is sorted
+sortReverse = false; // false if ascending, true if descending
+
+formatters = {
+	[DataType.String]: function(v) { return v; },
+	[DataType.TitleID_WiiU]:
+		function(v) {
+			return v.toString(16).toUpperCase().padStart(16, '0');
+		},
+	[DataType.TitleID_Switch]:
+		function(v) {
+			return v.toString(16).toUpperCase().padStart(16, '0');
+		},
+	[DataType.Bool]: function(v) { return v ? "Yes" : "No"; },
+	[DataType.Version]: function(v) { return "v" + v; },
+	[DataType.Size]:
+		function(v) {
+			var steps = 0;
+			var frac = 0;
+			while (v >= 1000) {
+				frac = v % 1000;
+				v = Math.floor(v / 1000);
+				steps++;
 			}
-			s += v[0][i];
+			
+			if (steps == 0) return v + " B";
+			else {
+				return v + "." + Math.floor(frac / 100) + " " + ["KB", "MB", "GB"][steps - 1];
+			}
+		},
+	[DataType.Lib]:
+		function(v) {
+			if (v === null || v === undefined) return "";
+			if (v.length == 0) return "Yes";
+			
+			var s = "";
+			for (var i = 0; i < v[0].length; i++) {
+				if (i != 0) {
+					s += ".";
+				}
+				s += v[0][i];
+			}
+			
+			if (v.length == 2) {
+				s += "-" + v[1];
+			}
+			
+			return s;
+		},
+	[DataType.Address]:
+		function(v) {
+			return `${v[0]} (${v[1]})`
+		},
+	[DataType.HexInt]:
+		function(v) {
+			return v.toString(16).toUpperCase();
 		}
-		
-		if (v.length == 2) {
-			s += "-" + v[1];
-		}
-		
-		return s;
-	},
-	function(v) {
-		return `${v[0]} (${v[1]})`
-	},
-	function(v) {
-		return v.toString(16).toUpperCase();
-	}
-]
+}
 
 function formatField(game, field) {
 	var value = game[field.key];
@@ -64,12 +86,20 @@ function sortPlain(a, b) {
 }
 
 function sortTitleId(a, b) {
+	// Sorts a Nintendo Switch title id
 	var tida = (a >> 7) & 0x1FFFFFF;
 	var tidb = (b >> 7) & 0x1FFFFFF;
 	return sortPlain(tida, tidb);
 }
 
+function sortBool(a, b) {
+	if (a === undefined) a = false;
+	if (b === undefined) b = false;
+	return a - b;
+}
+
 function sortLib(a, b) {
+	// Sorts a library version number
 	if (a === null || a === undefined) return -1;
 	if (b === null || b === undefined) return 1;
 	
@@ -90,6 +120,7 @@ function sortLib(a, b) {
 }
 
 function sortAddr(a, b) {
+	// Sorts an IP address and port
 	var f1 = a[0].split(".");
 	var f2 = b[0].split(".");
 	if (parseInt(f1[0]) < parseInt(f2[0])) return -1;
@@ -105,12 +136,21 @@ function sortAddr(a, b) {
 	return 0;
 }
 
-sorters = [
-	sortPlain, sortPlain, sortTitleId, sortPlain, sortPlain,
-	sortPlain, sortLib, sortAddr, sortPlain
-]
+sorters = {
+	[DataType.String]: sortPlain,
+	[DataType.TitleID_WiiU]: sortPlain,
+	[DataType.TitleID_Switch]: sortTitleId,
+	[DataType.Bool]: sortBool,
+	[DataType.Version]: sortPlain,
+	[DataType.Size]: sortPlain,
+	[DataType.Lib]: sortLib,
+	[DataType.Address]: sortAddr,
+	[DataType.HexInt]: sortPlain
+}
 
 function sortFunc(a, b) {
+	// Sorts two rows with the active sort index and order
+
 	if (sortReverse) {
 		var t = a;
 		a = b;
