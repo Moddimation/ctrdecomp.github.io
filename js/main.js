@@ -4,27 +4,30 @@ const DataType = {
 	// Switch title ids have a random and an incrementing part. They are sorted
 	// by the incrementing part.
 
-	String: 0, // A simple string
-	TitleID_WiiU: 1,
-	TitleID_Switch: 2,
-	Bool: 3, // "Yes" or "No"
-	Version: 4, // A version number, e.g. "v5"
-	Size: 5, // A size in bytes, e.g. "1.2 KB"
-	Lib: 6, // A library version number with an optional suffix, e.g. "1.5.0-xx"
-	Address: 7, // An IP address and port
-	HexInt: 8 // A hexadecimal integer
+	String:   0, // Simple string
+	Int:      1, // Number
+	TitleID:  2,
+	Bool:     3, // "Yes" or "No"
+	Version:  4, // Version number, e.g. "v5"
+	Size:     5, // Size in bytes, e.g. "1.2 KB"
+	Lib:      6, // Library version number with an optional suffix, e.g. "1.5.0-xx"
+	Address:  7, // IP address and port
+	HexInt:   8, // Hexadecimal integer
 }
 
 sortIndex = 0; // Index of the column that is sorted
 sortReverse = false; // false if ascending, true if descending
 
+function fmtLibOne(e) {
+    var s = e[0].join(".");
+    if (e.length == 2) s += "-" + e[1];
+    return s;
+}
+
 formatters = {
 	[DataType.String]: function(v) { return v; },
-	[DataType.TitleID_WiiU]:
-		function(v) {
-			return v.toString(16).toUpperCase().padStart(16, '0');
-		},
-	[DataType.TitleID_Switch]:
+	[DataType.Int]: function(v) { return v.toString(); },
+	[DataType.TitleID]:
 		function(v) {
 			return v.toString(16).toUpperCase().padStart(16, '0');
 		},
@@ -45,24 +48,15 @@ formatters = {
 				return v + "." + Math.floor(frac / 100) + " " + ["KB", "MB", "GB"][steps - 1];
 			}
 		},
-	[DataType.Lib]:
-		function(v) {
-			if (v === null || v === undefined) return "";
-			if (v.length == 0) return "Yes";
+    [DataType.Lib]:
+        function(v) {
+            if (v === null || v === undefined) return "";
+            if (v.length == 0) return "Yes";
 			
-			var s = "";
-			for (var i = 0; i < v[0].length; i++) {
-				if (i != 0) {
-					s += ".";
-				}
-				s += v[0][i];
-			}
-			
-			if (v.length == 2) {
-				s += "-" + v[1];
-			}
-			
-			return s;
+            if (Array.isArray(v[0][0])) {
+                return v.map(fmtLibOne).join(", ");
+            }
+            return fmtLibOne(v);
 		},
 	[DataType.Address]:
 		function(v) {
@@ -71,7 +65,11 @@ formatters = {
 	[DataType.HexInt]:
 		function(v) {
 			return v.toString(16).toUpperCase();
-		}
+		},
+	[DataType.Address]:
+		function(v) {
+			return `${v[0]} (${v[1]})`
+		},
 }
 
 function formatField(game, field) {
@@ -98,25 +96,33 @@ function sortBool(a, b) {
 	return a - b;
 }
 
+function compareLibOne(a, b) {
+    for (var i = 0; i < a[0].length; i++) {
+        if (a[0][i] < b[0][i]) return -1;
+        if (a[0][i] > b[0][i]) return 1;
+    }
+    if (a.length != 2) return -1;
+    if (b.length != 2) return 1;
+    if (a[1] < b[1]) return -1;
+    if (a[1] > b[1]) return 1;
+    return 0;
+}
+
+function libMax(v) {
+    if (!Array.isArray(v[0][0])) return v;
+    var max = v[0];
+    for (var i = 1; i < v.length; i++) {
+        if (compareLibOne(v[i], max) > 0) max = v[i];
+    }
+    return max;
+}
+
 function sortLib(a, b) {
-	// Sorts a library version number
-	if (a === null || a === undefined) return -1;
-	if (b === null || b === undefined) return 1;
-	
-	if (a.length == 0) return -1;
-	if (b.length == 0) return 1;
-	
-	for (var i = 0; i < a[0].length; i++) {
-		if (a[0][i] < b[0][i]) return -1;
-		if (a[0][i] > b[0][i]) return 1;
-	}
-	
-	if (a.length != 2) return -1;
-	if (b.length != 2) return 1;
-	
-	if (a[1] < b[1]) return -1;
-	if (a[1] > b[1]) return 1;
-	return 0;
+    if (a === null || a === undefined) return -1;
+    if (b === null || b === undefined) return 1;
+    if (a.length == 0) return -1;
+    if (b.length == 0) return 1;
+    return compareLibOne(libMax(a), libMax(b));
 }
 
 function sortAddr(a, b) {
@@ -138,8 +144,8 @@ function sortAddr(a, b) {
 
 sorters = {
 	[DataType.String]: sortPlain,
-	[DataType.TitleID_WiiU]: sortPlain,
-	[DataType.TitleID_Switch]: sortTitleId,
+	[DataType.Int]: sortPlain,
+	[DataType.TitleID]: sortPlain,
 	[DataType.Bool]: sortBool,
 	[DataType.Version]: sortPlain,
 	[DataType.Size]: sortPlain,
@@ -354,7 +360,7 @@ function download(path, callback) {
 	req.send();
 }
 
-pages = ["wiiu", "switch", "nexwiiu"];
+pages = ["plain_region"];
 
 url = new URL(window.location.href);
 page = url.searchParams.get("page")
