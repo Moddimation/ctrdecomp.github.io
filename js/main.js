@@ -60,15 +60,12 @@ formatters = {
 		},
 	[DataType.Address]:
 		function(v) {
+            if (v === null || v === undefined || v.length === 0) return "";
 			return `${v[0]} (${v[1]})`
 		},
 	[DataType.HexInt]:
 		function(v) {
 			return v.toString(16).toUpperCase();
-		},
-	[DataType.Address]:
-		function(v) {
-			return `${v[0]} (${v[1]})`
 		},
 }
 
