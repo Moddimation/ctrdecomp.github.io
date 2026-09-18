@@ -68,9 +68,49 @@ formatters = {
 			return v.toString(16).toUpperCase();
 		},
 }
+function getLocName(game, prefix) {
+	var lang = document.getElementById("lang").value;
+	var value;
+
+	value = game[prefix + lang];
+	if (value !== undefined && value !== null && value !== "") {
+		return value;
+	}
+
+	value = game[prefix + "en"];
+	if (value !== undefined && value !== null && value !== "") {
+		return value;
+        }
+
+	for (var key in game) {
+		if (!key.startsWith(prefix)) 
+            continue
+
+        value = game[key];
+        if (value !== undefined && value !== null && value !== "") {
+            return value;
+        }
+	}
+
+	return "";
+}
 
 function formatField(game, field) {
-	var value = game[field.key];
+	var value;
+
+	if (field.key == "name") {
+		value = getLocName(game, "name_");
+	}
+	else if (field.key == "nameshort") {
+		value = getLocName(game, "nameshort_");
+	}
+        else if (field.key == "publish") {
+                value = getLocName(game, "publish_");
+        }
+	else {
+		value = game[field.key];
+	}
+
 	return formatters[field.type](value);
 }
 
@@ -165,7 +205,22 @@ function sortFunc(a, b) {
 	
 	return sorters[info.fields[sortIndex].type](v1, v2);
 }
+function gameMatchesName(game, query) {
+	query = query.toLowerCase();
 
+	for (var key in game) {
+		if (key.startsWith("name_") || key.startsWith("nameshort_")) {
+			var value = game[key];
+
+			if (value !== undefined && value !== null &&
+				String(value).toLowerCase().includes(query)) {
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
 function filterCheck(game) {
 	for (var i = 0; i < filters.length; i++) {
 		var input = filters[i];
@@ -339,10 +394,15 @@ function prepareParams() {
 	}
 }
 
+function prepareLang() {
+	document.getElementById("lang").onchange = updateUI;
+}
+
 function prepareUI() {
 	prepareCategories();
 	prepareFilters();
 	prepareParams();
+    prepareLang();
 	updateUI();
 }
 
